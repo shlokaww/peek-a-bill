@@ -410,54 +410,127 @@ def build_charts(df, suffix=""):
         return figs
     df = df.copy()
 
+    # Detect period label from date range
+    period_label = ""
+    try:
+        df["parsed_date"] = pd.to_datetime(df["call_date"], dayfirst=True, errors="coerce")
+        valid_dates = df["parsed_date"].dropna()
+        if len(valid_dates) > 0:
+            date_min = valid_dates.min()
+            date_max = valid_dates.max()
+            span_days = (date_max - date_min).days
+            if span_days <= 1:
+                period_label = "Daily"
+            elif span_days <= 31:
+                period_label = f"Monthly ({date_min.strftime('%b %Y')})"
+            elif span_days <= 93:
+                period_label = "Quarterly"
+            else:
+                period_label = "Yearly"
+    except:
+        pass
+
+    def _layout(fig, title, xlab="", ylab=""):
+        fig.update_layout(
+            plot_bgcolor=WHITE, paper_bgcolor=WHITE,
+            font_family="Inter", font_color=TXT,
+            title_text=f"{title}<br><sup style='color:{HINT}'>{period_label}</sup>" if period_label else title,
+            title_font_family="Playfair Display", title_font_size=15,
+            margin=dict(l=60, r=20, t=55, b=80),
+            xaxis=dict(
+                title=xlab, gridcolor=BORDER,
+                tickangle=-35, tickfont=dict(size=10),
+                title_font=dict(size=11),
+                # Force full numbers — no K/M/B abbreviation
+                tickformat="d" if not xlab.lower().__contains__("min") else ".1f",
+            ),
+            yaxis=dict(
+                title=ylab, gridcolor=BORDER,
+                tickfont=dict(size=10),
+                title_font=dict(size=11),
+                tickformat="d",
+            ),
+        )
+        return fig
+
+    # ── Daily call activity ───────────────────────────────────────────────
+    try:
+        daily = df.groupby(df["parsed_date"].dt.date).size().reset_index()
+        daily.columns = ["Date", "Calls"]
+        daily["Date"] = daily["Date"].astype(str)
+        if len(daily) > 0:
+            fig_daily = px.bar(daily, x="Date", y="Calls",
+                color_discrete_sequence=[PINK],
+                labels={"Date": "Date", "Calls": "Number of Calls"})
+            fig_daily = _layout(fig_daily, "Daily call activity", "Date", "Number of Calls")
+            fig_daily.update_xaxes(tickangle=-45)
+            figs["daily_calls"] = fig_daily
+    except: pass
+
+    # ── Most called numbers ───────────────────────────────────────────────
     if "called_number" in df.columns and "talk_time_seconds" in df.columns:
         top = df.groupby("called_number").agg(
-            total_calls=("call_date","count"),
-            total_seconds=("talk_time_seconds","sum")
+            total_calls=("call_date", "count"),
+            total_seconds=("talk_time_seconds", "sum")
         ).sort_values("total_calls", ascending=False).head(10).reset_index()
-        top["total_minutes"] = (top["total_seconds"]/60).round(1)
+        top["total_minutes"] = (top["total_seconds"] / 60).round(1)
+        # Keep full number as string — no scientific notation
+        top["called_number"] = top["called_number"].astype(str)
 
-        figs["top_numbers"] = px.bar(top, x="total_calls", y="called_number", orientation="h",
-            color_discrete_sequence=[PINK], title="Most called numbers",
-            labels={"total_calls":"Calls","called_number":"Number"})
-        figs["talk_time"] = px.bar(top, x="total_minutes", y="called_number", orientation="h",
-            color_discrete_sequence=[PINK_M], title="Talk time per number (min)",
-            labels={"total_minutes":"Minutes","called_number":"Number"})
+        fig_top = px.bar(top, x="total_calls", y="called_number", orientation="h",
+            color_discrete_sequence=[PINK],
+            labels={"total_calls": "Number of Calls", "called_number": "Phone Number"})
+        fig_top = _layout(fig_top, "Most called numbers", "Number of Calls", "Phone Number")
+        fig_top.update_xaxes(tickformat="d")
+        figs["top_numbers"] = fig_top
 
-    if "call_date" in df.columns:
-        try:
-            df["parsed_date"] = pd.to_datetime(df["call_date"], dayfirst=True, errors="coerce")
-            df["day_of_week"] = df["parsed_date"].dt.day_name()
-            day_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-            day_c = df.groupby("day_of_week").size().reindex(day_order, fill_value=0).reset_index()
-            day_c.columns = ["Day","Calls"]
-            figs["day_of_week"] = px.bar(day_c, x="Day", y="Calls",
-                color_discrete_sequence=[PINK], title="Calls by day of week")
-        except: pass
+        fig_tt = px.bar(top, x="total_minutes", y="called_number", orientation="h",
+            color_discrete_sequence=[PINK_M],
+            labels={"total_minutes": "Talk Time (min)", "called_number": "Phone Number"})
+        fig_tt = _layout(fig_tt, "Talk time per number", "Talk Time (min)", "Phone Number")
+        fig_tt.update_xaxes(tickformat=".1f")
+        figs["talk_time"] = fig_tt
 
+    # ── Calls by day of week ──────────────────────────────────────────────
+    try:
+        df["day_of_week"] = df["parsed_date"].dt.day_name()
+        day_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+        day_c = df.groupby("day_of_week").size().reindex(day_order, fill_value=0).reset_index()
+        day_c.columns = ["Day", "Calls"]
+        fig_dow = px.bar(day_c, x="Day", y="Calls",
+            color_discrete_sequence=[PINK],
+            labels={"Day": "Day of Week", "Calls": "Number of Calls"})
+        fig_dow = _layout(fig_dow, "Calls by day of week", "Day of Week", "Number of Calls")
+        fig_dow.update_xaxes(tickangle=0)
+        figs["day_of_week"] = fig_dow
+    except: pass
+
+    # ── Calls by hour ─────────────────────────────────────────────────────
     if "start_time" in df.columns:
         try:
             df["hour"] = pd.to_datetime(df["start_time"], format="%H:%M:%S", errors="coerce").dt.hour
             if df["hour"].isna().all():
                 df["hour"] = pd.to_datetime(df["start_time"], format="%H:%M", errors="coerce").dt.hour
             hc = df.groupby("hour").size().reset_index()
-            hc.columns = ["Hour","Calls"]
-            figs["hour_of_day"] = px.bar(hc, x="Hour", y="Calls",
-                color_discrete_sequence=[GREEN], title="Calls by hour of day")
+            hc.columns = ["Hour", "Calls"]
+            fig_hr = px.bar(hc, x="Hour", y="Calls",
+                color_discrete_sequence=[GREEN],
+                labels={"Hour": "Hour of Day (24h)", "Calls": "Number of Calls"})
+            fig_hr = _layout(fig_hr, "Calls by hour of day", "Hour of Day (24h)", "Number of Calls")
+            fig_hr.update_xaxes(tickvals=list(range(0,24)), tickformat="d", tickangle=0)
+            figs["hour_of_day"] = fig_hr
         except: pass
 
+    # ── Call duration distribution ────────────────────────────────────────
     if "talk_time_seconds" in df.columns:
-        df["talk_minutes"] = df["talk_time_seconds"]/60
-        figs["duration_dist"] = px.histogram(df, x="talk_minutes", nbins=20,
-            color_discrete_sequence=[PINK_M], title="Call duration distribution (min)")
+        df["talk_minutes"] = df["talk_time_seconds"] / 60
+        fig_dur = px.histogram(df, x="talk_minutes", nbins=20,
+            color_discrete_sequence=[PINK_M],
+            labels={"talk_minutes": "Call Duration (min)", "count": "Number of Calls"})
+        fig_dur = _layout(fig_dur, "Call duration distribution", "Call Duration (min)", "Number of Calls")
+        fig_dur.update_xaxes(tickformat=".1f")
+        figs["duration_dist"] = fig_dur
 
-    for fig in figs.values():
-        fig.update_layout(
-            plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter", font_color=TXT,
-            title_font_family="Playfair Display", title_font_size=15,
-            margin=dict(l=20,r=20,t=40,b=20),
-            xaxis=dict(gridcolor=BORDER), yaxis=dict(gridcolor=BORDER)
-        )
     return figs
 
 
@@ -796,35 +869,41 @@ def generate_pdf(bill_data, df, figs, meta, alerts):
             df_chart["parsed_date"] = pd.to_datetime(df_chart["call_date"], dayfirst=True, errors="coerce")
             daily_calls = df_chart.groupby(df_chart["parsed_date"].dt.date).size().reset_index()
             daily_calls.columns = ["Date", "Calls"]
+            daily_calls["Date"] = daily_calls["Date"].astype(str)
             if len(daily_calls) > 1:
                 fig_daily = px.bar(daily_calls, x="Date", y="Calls",
-                    color_discrete_sequence=[PINK], title="Daily call activity (monthly view)")
+                    color_discrete_sequence=[PINK],
+                    labels={"Date": "Date", "Calls": "Number of Calls"})
                 fig_daily.update_layout(
                     plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter",
                     font_size=11, title_font_size=13,
-                    xaxis=dict(title="Date", tickangle=-45, tickfont=dict(size=9), gridcolor=BORDER),
-                    yaxis=dict(title="Number of Calls", tickfont=dict(size=9), gridcolor=BORDER),
-                    margin=dict(l=60, r=20, t=50, b=80)
+                    title_text="Daily call activity (monthly view)",
+                    xaxis=dict(title="Date", tickangle=-45, tickfont=dict(size=9),
+                               gridcolor=BORDER, title_font=dict(size=10), tickformat=""),
+                    yaxis=dict(title="Number of Calls", tickfont=dict(size=9),
+                               gridcolor=BORDER, title_font=dict(size=10), tickformat="d"),
+                    margin=dict(l=70, r=20, t=60, b=90)
                 )
-                img_bytes = fig_daily.to_image(format="png", width=700, height=350, scale=1.5)
+                img_bytes = fig_daily.to_image(format="png", width=720, height=360, scale=2)
                 story.append(Paragraph("Daily Call Activity", h3_s))
                 story.append(RLImage(io.BytesIO(img_bytes), width=16*cm, height=8*cm))
                 story.append(Spacer(1, 10))
-        except: pass
+        except Exception as daily_err:
+            pass
 
         for key, fig in figs.items():
             try:
-                # Improve axis readability before rendering
-                fig.update_layout(
-                    font_size=11,
-                    xaxis=dict(tickangle=-35, tickfont=dict(size=9), title_font=dict(size=10)),
-                    yaxis=dict(tickfont=dict(size=9), title_font=dict(size=10)),
-                    margin=dict(l=60, r=20, t=50, b=70)
-                )
-                img_bytes = fig.to_image(format="png", width=700, height=350, scale=1.5)
+                # Charts already have proper layout from build_charts
+                # Bump margins slightly for PDF rendering
+                fig.update_layout(margin=dict(l=70, r=20, t=60, b=90))
+                img_bytes = fig.to_image(format="png", width=720, height=360, scale=2)
                 story.append(RLImage(io.BytesIO(img_bytes), width=16*cm, height=8*cm))
-                story.append(Spacer(1,10))
-            except: pass
+                story.append(Spacer(1, 10))
+            except Exception as chart_err:
+                story.append(Paragraph(f"[Chart '{key}' could not render: {chart_err}]",
+                    ParagraphStyle("ce", fontName="Helvetica", fontSize=8,
+                                   textColor=colors.HexColor(HINT), spaceAfter=6)))
+                pass
 
     # MCC/MNC
     if meta.get("mcc"):
