@@ -1,0 +1,8 @@
+version: "3.8"
+services:
+  peekabill:
+    build: .
+    container_name: peekabill_app
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
