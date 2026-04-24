@@ -94,6 +94,7 @@ div[data-testid="metric-container"]{{background:{WHITE};border:1px solid {BORDER
 for k, v in [
     ("bill_data", None), ("df_calls", None), ("meta", {}),
     ("bill_data_2", None), ("df_calls_2", None), ("meta_2", {}),
+    ("df_data_sessions", None),
     ("page", "upload"),
 ]:
     if k not in st.session_state:
@@ -101,7 +102,25 @@ for k, v in [
 import re
 
 def extract_calls_from_tables(pdf):
+    """
+    Table-based extractor. Handles:
+      - Standard rows with a 10-digit number
+      - Jio CDR rows: optional 91 prefix, DD-MON-YYYY date, time, masked number (91xxxxxxxx6),
+        then usage columns: Used Usage, Billed Usage, Free Usage, Chargeable Usage, Amount
+        e.g.: 91 05-MAR-2026 08:42:51 919xxxxxxxx6 110 0 0 0 0.00
+    """
     records = []
+    data_sessions = []
+
+    # Jio CDR call row: optional seq/country, DD-MON-YYYY, HH:MM:SS, number (may be masked), usage cols
+    jio_call_pat = re.compile(
+        r'(?:91\s+)?'
+        r'(\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{2,4})\s+'
+        r'(\d{1,2}:\d{2}:\d{2})\s+'
+        r'((?:91)?[6-9X*x\d]{6,13})\s+'
+        r'(\d+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)',
+        re.I
+    )
 
     for page in pdf.pages:
         tables = page.extract_tables()
@@ -109,48 +128,65 @@ def extract_calls_from_tables(pdf):
             continue
 
         for table in tables:
-            for row in table:
+            # Detect header row to understand column layout
+            header_map = {}
+            header_row_idx = -1
+            for ri, row in enumerate(table):
                 if not row:
+                    continue
+                row_lower = [str(c).lower().strip() if c else "" for c in row]
+                if any(k in " ".join(row_lower) for k in ["used usage","billed usage","chargeable","called number","destination"]):
+                    header_map = {v: i for i, v in enumerate(row_lower) if v}
+                    header_row_idx = ri
+                    break
+
+            for ri, row in enumerate(table):
+                if not row or ri == header_row_idx:
                     continue
 
                 row_text = " ".join([str(x) for x in row if x])
 
-                # Phone number
-                num_match = re.search(r'(\+91\d{10}|[6-9]\d{9})', row_text)
+                # ── Try Jio CDR call format first ──────────────────────────
+                jm = jio_call_pat.search(row_text)
+                if jm:
+                    raw_num = re.sub(r'\D', '', jm.group(3))
+                    number = raw_num[-10:] if len(raw_num) >= 10 else raw_num
+                    used   = float(jm.group(5)) if jm.group(5) else 0
+                    records.append({
+                        "call_date":         jm.group(1),
+                        "start_time":        jm.group(2),
+                        "end_time":          "",
+                        "called_number":     number,
+                        "talk_time_seconds": int(jm.group(4)),
+                        "used_usage":        used,
+                        "billed_usage":      float(jm.group(6)),
+                        "free_usage":        float(jm.group(7)),
+                        "chargeable_usage":  float(jm.group(8)),
+                    })
+                    continue
 
-                # Date (handles multiple formats)
+                # ── Standard call row ──────────────────────────────────────
+                num_match  = re.search(r'(\+?91)?([6-9]\d{9})', row_text)
                 date_match = re.search(r'\d{1,2}[-/][A-Za-z0-9]+[-/]\d{2,4}', row_text)
-
-                # Time(s)
                 time_matches = re.findall(r'\d{1,2}:\d{2}(?::\d{2})?', row_text)
-
-                # Duration (handles sec/min formats)
-                dur_match = re.search(r'(\d+)\s*(sec|s|mins|min|m)', row_text, re.I)
+                dur_match  = re.search(r'(\d+)\s*(sec|s|mins|min|m)\b', row_text, re.I)
 
                 if num_match and date_match:
                     duration = 0
-
                     if dur_match:
-                        val = int(dur_match.group(1))
+                        val  = int(dur_match.group(1))
                         unit = dur_match.group(2).lower()
-
-                        if 'm' in unit:
-                            duration = val * 60
-                        else:
-                            duration = val
-
-                    # Clean number (last 10 digits)
-                    number = re.sub(r'\D', '', num_match.group())[-10:]
-
+                        duration = val * 60 if 'm' in unit else val
+                    number = (num_match.group(2) or re.sub(r'\D','',num_match.group()))[-10:]
                     records.append({
-                        "call_date": date_match.group(),
-                        "start_time": time_matches[0] if len(time_matches) > 0 else "",
-                        "end_time": time_matches[1] if len(time_matches) > 1 else "",
-                        "called_number": number,
-                        "talk_time_seconds": duration
+                        "call_date":         date_match.group(),
+                        "start_time":        time_matches[0] if time_matches else "",
+                        "end_time":          time_matches[1] if len(time_matches) > 1 else "",
+                        "called_number":     number,
+                        "talk_time_seconds": duration,
                     })
 
-    return records
+    return records, data_sessions
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def clean_number(s):
@@ -160,7 +196,8 @@ def extract_bill_data(pdf_file):
     data = {
         "account_info": {}, "statement_info": {}, "billing_info": {},
         "plan_details": {}, "payment_history": [], "weekly_data": [],
-        "call_records": [], "sms_records": [], "device_info": {}, "raw_text": ""
+        "call_records": [], "sms_records": [], "data_session_records": [],
+        "device_info": {}, "raw_text": ""
     }
     try:
         with pdfplumber.open(pdf_file) as pdf:
@@ -199,7 +236,22 @@ def extract_bill_data(pdf_file):
             m = re.search(r'(?:plan|tariff|pack)[:\s]+([^\n]+)', T, re.I)
             if m: data["plan_details"]["plan_name"] = m.group(1).strip()[:100]
 
-            # Call records
+            # Telecom provider auto-detection
+            telecom_hints = {
+                "Jio":         ["jio", "reliance jio", "jionet", "ril"],
+                "Airtel":      ["airtel", "bharti airtel"],
+                "Vodafone/Vi": ["vodafone", "vi ", "idea", "vodafone idea"],
+                "BSNL":        ["bsnl", "bharat sanchar"],
+                "MTNL":        ["mtnl"],
+            }
+            T_lower = T.lower()
+            for provider, hints in telecom_hints.items():
+                if any(h in T_lower for h in hints):
+                    data["account_info"]["telecom_provider"] = provider
+                    break
+
+            # ── Call records ──────────────────────────────────────────────
+            # Format A: standard CDR with date/time/number/duration
             call_pat = re.compile(
                 r'(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s+'
                 r'(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)\s+'
@@ -212,6 +264,64 @@ def extract_bill_data(pdf_file):
                     "call_date": m2.group(1), "start_time": m2.group(2),
                     "end_date": m2.group(3) or m2.group(1), "end_time": m2.group(4) or "",
                     "called_number": m2.group(5), "talk_time_seconds": int(m2.group(6))
+                })
+
+            # Format B: Jio CDR call row
+            # Optional leading seq/country (91), DD-MON-YYYY, HH:MM:SS, masked/full number, duration, usage cols
+            # e.g.: 91 05-MAR-2026 08:42:51 919xxxxxxxx6 110 0 0 0 0.00
+            jio_call_pat = re.compile(
+                r'(?:91\s+)?'
+                r'(\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{2,4})\s+'
+                r'(\d{1,2}:\d{2}:\d{2})\s+'
+                r'((?:91)?[6-9X*x\d]{6,13})\s+'
+                r'(\d+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)',
+                re.I
+            )
+            seen_jio = set()
+            for m2 in jio_call_pat.finditer(T):
+                key = (m2.group(1), m2.group(2), m2.group(3))
+                if key in seen_jio:
+                    continue
+                seen_jio.add(key)
+                raw_num = re.sub(r'\D', '', m2.group(3))
+                number  = raw_num[-10:] if len(raw_num) >= 10 else raw_num
+                data["call_records"].append({
+                    "call_date":         m2.group(1),
+                    "start_time":        m2.group(2),
+                    "end_date":          m2.group(1),
+                    "end_time":          "",
+                    "called_number":     number,
+                    "talk_time_seconds": int(m2.group(4)),
+                    "used_usage":        float(m2.group(5)),
+                    "billed_usage":      float(m2.group(6)),
+                    "free_usage":        float(m2.group(7)),
+                    "chargeable_usage":  float(m2.group(8)),
+                })
+
+            # Jio data session records
+            # Format: <seq> <date> <start_time> <date> <end_time> <destination> <vol1> <vol2> <total_vol> <charged> <charge>
+            # e.g.: 44 02-MAR-2026 12:43:29 02-MAR-2026 13:54:35 JIONET 9.668 9.668 9.668 0.000 0.0
+            data_pat = re.compile(
+                r'\d+\s+'
+                r'(\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{2,4})\s+'
+                r'(\d{1,2}:\d{2}:\d{2})\s+'
+                r'(\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{2,4})\s+'
+                r'(\d{1,2}:\d{2}:\d{2})\s+'
+                r'(JIONET|INTERNET|DATA|APN[\w\.]*)\s+'
+                r'([\d\.]+)\s+[\d\.]+\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)',
+                re.I
+            )
+            for m2 in data_pat.finditer(T):
+                data["data_session_records"].append({
+                    "start_date":   m2.group(1),
+                    "start_time":   m2.group(2),
+                    "end_date":     m2.group(3),
+                    "end_time":     m2.group(4),
+                    "destination":  m2.group(5).upper(),
+                    "upload_mb":    float(m2.group(6)),
+                    "total_mb":     float(m2.group(7)),
+                    "charged_mb":   float(m2.group(8)),
+                    "charge":       float(m2.group(9)),
                 })
 
             # SMS records
@@ -533,14 +643,14 @@ def generate_pdf(bill_data, df, figs, meta, alerts):
     styles = getSampleStyleSheet()
     story = []
 
-    title_s  = ParagraphStyle("t",  fontName="Helvetica-Bold",   fontSize=26, textColor=colors.HexColor(PINK_D),   alignment=TA_CENTER, spaceAfter=4)
-    sub_s    = ParagraphStyle("s",  fontName="Helvetica",         fontSize=11, textColor=colors.HexColor(HINT),     alignment=TA_CENTER, spaceAfter=18)
-    h2_s     = ParagraphStyle("h2", fontName="Helvetica-Bold",   fontSize=14, textColor=colors.HexColor(PINK_D),   spaceBefore=16, spaceAfter=8)
-    h3_s     = ParagraphStyle("h3", fontName="Helvetica-Bold",   fontSize=11, textColor=colors.HexColor(TXT),      spaceBefore=10, spaceAfter=6)
+    title_s  = ParagraphStyle("t",  fontName="Helvetica-Bold",   fontSize=26, textColor=colors.HexColor(PINK_D),   alignment=TA_CENTER, spaceAfter=8,  spaceBefore=0)
+    sub_s    = ParagraphStyle("s",  fontName="Helvetica",         fontSize=12, textColor=colors.HexColor(HINT),     alignment=TA_CENTER, spaceAfter=20, spaceBefore=4)
+    h2_s     = ParagraphStyle("h2", fontName="Helvetica-Bold",   fontSize=14, textColor=colors.HexColor(PINK_D),   spaceBefore=20, spaceAfter=10)
+    h3_s     = ParagraphStyle("h3", fontName="Helvetica-Bold",   fontSize=11, textColor=colors.HexColor(TXT),      spaceBefore=12, spaceAfter=6)
     body_s   = ParagraphStyle("b",  fontName="Helvetica",         fontSize=9,  textColor=colors.HexColor(TXT),      leading=14, spaceAfter=4)
-    small_s  = ParagraphStyle("sm", fontName="Helvetica",         fontSize=7,  textColor=colors.HexColor(HINT),     alignment=TA_CENTER, spaceAfter=6)
+    small_s  = ParagraphStyle("sm", fontName="Helvetica",         fontSize=7,  textColor=colors.HexColor(HINT),     alignment=TA_CENTER, spaceAfter=8)
     ai_s     = ParagraphStyle("ai", fontName="Helvetica-Oblique", fontSize=8,  textColor=colors.HexColor("#3E6E38"),
-                               backColor=colors.HexColor(GREEN_L), borderPadding=8, spaceAfter=14, alignment=TA_CENTER)
+                               backColor=colors.HexColor(GREEN_L), borderPadding=8, spaceAfter=16, spaceBefore=8, alignment=TA_CENTER)
     alert_r_s = ParagraphStyle("ar", fontName="Helvetica",        fontSize=9,  textColor=colors.HexColor(ALERT_RT),
                                 backColor=colors.HexColor(ALERT_R), borderPadding=6, spaceAfter=6)
     alert_y_s = ParagraphStyle("ay", fontName="Helvetica",        fontSize=9,  textColor=colors.HexColor(ALERT_YT),
@@ -551,10 +661,20 @@ def generate_pdf(bill_data, df, figs, meta, alerts):
     story.append(Paragraph("Peek-a-Bill", title_s))
     story.append(Paragraph("Phone Bill Analysis Report", sub_s))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor(BORDER)))
-    story.append(Spacer(1,10))
-    story.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", small_s))
+    story.append(Spacer(1, 12))
+
+    # Telecom + date subtitle
+    telecom_name = meta.get("telecom") or bill_data.get("account_info",{}).get("telecom_provider","—")
+    bill_date_str = meta.get("bill_date","—")
     story.append(Paragraph(
-        "AI Acknowledgment: This report was generated with AI-assisted extraction using Claude by Anthropic. "
+        f"Telecom Provider: {telecom_name}   ·   Bill Date: {bill_date_str}   ·   Monthly Statement",
+        ParagraphStyle("meta_line", fontName="Helvetica", fontSize=9, textColor=colors.HexColor(MUTED),
+                       alignment=TA_CENTER, spaceAfter=6)
+    ))
+    story.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", small_s))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(
+        "AI Acknowledgment: This report was generated with AI-assisted extraction. "
         "All data was parsed from the uploaded PDF. Please verify against your original bill.", ai_s))
 
     # Account details table
@@ -645,11 +765,40 @@ def generate_pdf(bill_data, df, figs, meta, alerts):
         story.append(tbl2)
         story.append(Spacer(1,12))
 
+        # Daily usage chart if date info available
+        try:
+            df_chart = df.copy()
+            df_chart["parsed_date"] = pd.to_datetime(df_chart["call_date"], dayfirst=True, errors="coerce")
+            daily_calls = df_chart.groupby(df_chart["parsed_date"].dt.date).size().reset_index()
+            daily_calls.columns = ["Date", "Calls"]
+            if len(daily_calls) > 1:
+                fig_daily = px.bar(daily_calls, x="Date", y="Calls",
+                    color_discrete_sequence=[PINK], title="Daily call activity (monthly view)")
+                fig_daily.update_layout(
+                    plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter",
+                    font_size=11, title_font_size=13,
+                    xaxis=dict(title="Date", tickangle=-45, tickfont=dict(size=9), gridcolor=BORDER),
+                    yaxis=dict(title="Number of Calls", tickfont=dict(size=9), gridcolor=BORDER),
+                    margin=dict(l=60, r=20, t=50, b=80)
+                )
+                img_bytes = fig_daily.to_image(format="png", width=700, height=350, scale=1.5)
+                story.append(Paragraph("Daily Call Activity", h3_s))
+                story.append(RLImage(io.BytesIO(img_bytes), width=16*cm, height=8*cm))
+                story.append(Spacer(1, 10))
+        except: pass
+
         for key, fig in figs.items():
             try:
-                img_bytes = fig.to_image(format="png", width=600, height=300, scale=1.5)
+                # Improve axis readability before rendering
+                fig.update_layout(
+                    font_size=11,
+                    xaxis=dict(tickangle=-35, tickfont=dict(size=9), title_font=dict(size=10)),
+                    yaxis=dict(tickfont=dict(size=9), title_font=dict(size=10)),
+                    margin=dict(l=60, r=20, t=50, b=70)
+                )
+                img_bytes = fig.to_image(format="png", width=700, height=350, scale=1.5)
                 story.append(RLImage(io.BytesIO(img_bytes), width=16*cm, height=8*cm))
-                story.append(Spacer(1,8))
+                story.append(Spacer(1,10))
             except: pass
 
     # MCC/MNC
@@ -757,6 +906,9 @@ if page == "upload":
                 st.info(f"Found {len(bd['call_records'])} call records.")
             else:
                 st.warning("No call records auto-detected. Add them manually below.")
+            if bd.get("data_session_records"):
+                st.session_state["df_data_sessions"] = pd.DataFrame(bd["data_session_records"])
+                st.info(f"Found {len(bd['data_session_records'])} data session records.")
             if bd["device_info"]:
                 st.info(f"Device info found: {', '.join(bd['device_info'].keys())}")
 
@@ -768,7 +920,10 @@ if page == "upload":
         bi = bd.get("billing_info", {})
         si = bd.get("statement_info", {})
 
-        telecom   = st.selectbox("Telecom provider", ["Airtel","Jio","Vodafone/Vi","BSNL","Other"])
+        telecom   = st.selectbox("Telecom provider", ["Airtel","Jio","Vodafone/Vi","BSNL","Other"],
+                        index=["Airtel","Jio","Vodafone/Vi","BSNL","Other"].index(
+                            ai2.get("telecom_provider","Airtel")
+                        ) if ai2.get("telecom_provider") in ["Airtel","Jio","Vodafone/Vi","BSNL","Other"] else 0)
         phone     = st.text_input("Phone number", value=ai2.get("phone_number",""))
         address   = st.text_area("Billing address", value=ai2.get("address",""), height=60)
         stmt_num  = st.text_input("Statement number", value=si.get("statement_number",""))
@@ -945,27 +1100,112 @@ elif page == "alerts":
 elif page == "data":
     st.markdown('<p class="page-title">Data usage</p>', unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("#### Weekly data breakdown (GB)")
-    weeks, vals = [], []
-    cols = st.columns(4)
-    for i in range(4):
-        v = cols[i].number_input(f"Week {i+1}", min_value=0.0, step=0.1, key=f"wk{i}")
-        weeks.append(f"Week {i+1}")
-        vals.append(v)
 
-    if any(v > 0 for v in vals):
-        wdf = pd.DataFrame({"Week": weeks, "Data (GB)": vals})
-        fig = px.bar(wdf, x="Week", y="Data (GB)", color_discrete_sequence=[GREEN],
-            title="Weekly data usage")
-        fig.update_layout(plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter",
-            title_font_family="Playfair Display", title_font_size=15,
-            xaxis=dict(gridcolor=BORDER), yaxis=dict(gridcolor=BORDER),
-            margin=dict(l=20,r=20,t=40,b=20))
-        st.plotly_chart(fig, use_container_width=True)
+    df_ds = st.session_state.get("df_data_sessions")
 
-        total = sum(vals)
-        st.metric("Total data this period", f"{round(total,2)} GB")
-        st.metric("Daily average", f"{round(total/28,2)} GB")
+    if df_ds is not None and len(df_ds) > 0:
+        st.markdown('<div class="alert-green">✓ Data sessions auto-detected from your bill.</div>', unsafe_allow_html=True)
+        st.markdown("")
+
+        total_sessions  = len(df_ds)
+        total_mb        = df_ds["total_mb"].sum()
+        charged_mb      = df_ds["charged_mb"].sum()
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total sessions",    str(total_sessions))
+        c2.metric("Total usage",       f"{round(total_mb/1024, 2)} GB" if total_mb >= 1024 else f"{round(total_mb, 1)} MB")
+        c3.metric("Chargeable usage",  f"{round(charged_mb/1024, 2)} GB" if charged_mb >= 1024 else f"{round(charged_mb, 1)} MB")
+
+        st.markdown("---")
+
+        # Daily usage chart
+        try:
+            df_ds["parsed_date"] = pd.to_datetime(df_ds["start_date"], dayfirst=True, errors="coerce")
+            daily = df_ds.groupby("parsed_date")["total_mb"].sum().reset_index()
+            daily.columns = ["Date", "Usage (MB)"]
+            fig_daily = px.bar(daily, x="Date", y="Usage (MB)",
+                color_discrete_sequence=[GREEN], title="Daily data usage (MB)")
+            fig_daily.update_layout(plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter",
+                title_font_family="Playfair Display", title_font_size=15,
+                xaxis=dict(gridcolor=BORDER), yaxis=dict(gridcolor=BORDER),
+                margin=dict(l=20,r=20,t=40,b=20))
+            st.plotly_chart(fig_daily, use_container_width=True)
+        except: pass
+
+        col1, col2 = st.columns(2)
+
+        # Top destinations
+        with col1:
+            try:
+                dest = df_ds.groupby("destination")["total_mb"].sum().sort_values(ascending=False).head(8).reset_index()
+                dest.columns = ["Destination", "Usage (MB)"]
+                fig_dest = px.bar(dest, x="Usage (MB)", y="Destination", orientation="h",
+                    color_discrete_sequence=[PINK], title="Top destinations by usage")
+                fig_dest.update_layout(plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter",
+                    title_font_family="Playfair Display", title_font_size=15,
+                    margin=dict(l=20,r=20,t=40,b=20))
+                st.plotly_chart(fig_dest, use_container_width=True)
+            except: pass
+
+        # Usage by hour
+        with col2:
+            try:
+                df_ds["hour"] = pd.to_datetime(df_ds["start_time"], format="%H:%M:%S", errors="coerce").dt.hour
+                hourly = df_ds.groupby("hour")["total_mb"].sum().reset_index()
+                hourly.columns = ["Hour", "Usage (MB)"]
+                fig_hour = px.bar(hourly, x="Hour", y="Usage (MB)",
+                    color_discrete_sequence=[PINK_M], title="Data usage by hour of day")
+                fig_hour.update_layout(plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter",
+                    title_font_family="Playfair Display", title_font_size=15,
+                    margin=dict(l=20,r=20,t=40,b=20))
+                st.plotly_chart(fig_hour, use_container_width=True)
+            except: pass
+
+        # Session duration vs usage scatter
+        try:
+            df_ds["start_dt"] = pd.to_datetime(df_ds["start_date"] + " " + df_ds["start_time"], dayfirst=True, errors="coerce")
+            df_ds["end_dt"]   = pd.to_datetime(df_ds["end_date"]   + " " + df_ds["end_time"],   dayfirst=True, errors="coerce")
+            df_ds["duration_min"] = (df_ds["end_dt"] - df_ds["start_dt"]).dt.total_seconds() / 60
+            valid = df_ds[df_ds["duration_min"] > 0]
+            if len(valid) > 1:
+                fig_scatter = px.scatter(valid, x="duration_min", y="total_mb",
+                    color="destination", title="Session duration vs usage",
+                    labels={"duration_min": "Duration (min)", "total_mb": "Usage (MB)"},
+                    color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_scatter.update_layout(plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter",
+                    title_font_family="Playfair Display", title_font_size=15,
+                    margin=dict(l=20,r=20,t=40,b=20))
+                st.plotly_chart(fig_scatter, use_container_width=True)
+        except: pass
+
+        st.markdown("#### Session log")
+        st.dataframe(df_ds.drop(columns=["parsed_date","start_dt","end_dt","duration_min","hour"], errors="ignore"),
+            use_container_width=True)
+        st.download_button("⬇ Download session log (CSV)",
+            df_ds.to_csv(index=False).encode(), "peekabill_data_sessions.csv", "text/csv")
+
+    else:
+        st.info("No data sessions auto-detected. You can enter weekly usage manually below.")
+        st.markdown("#### Weekly data breakdown (GB)")
+        weeks, vals = [], []
+        cols = st.columns(4)
+        for i in range(4):
+            v = cols[i].number_input(f"Week {i+1}", min_value=0.0, step=0.1, key=f"wk{i}")
+            weeks.append(f"Week {i+1}")
+            vals.append(v)
+
+        if any(v > 0 for v in vals):
+            wdf = pd.DataFrame({"Week": weeks, "Data (GB)": vals})
+            fig = px.bar(wdf, x="Week", y="Data (GB)", color_discrete_sequence=[GREEN],
+                title="Weekly data usage")
+            fig.update_layout(plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter",
+                title_font_family="Playfair Display", title_font_size=15,
+                xaxis=dict(gridcolor=BORDER), yaxis=dict(gridcolor=BORDER),
+                margin=dict(l=20,r=20,t=40,b=20))
+            st.plotly_chart(fig, use_container_width=True)
+            total = sum(vals)
+            st.metric("Total data this period", f"{round(total,2)} GB")
+            st.metric("Daily average", f"{round(total/28,2)} GB")
 
 # ════════════════════ LOCATION ════════════════════════
 elif page == "location":
