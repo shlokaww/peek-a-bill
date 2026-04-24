@@ -207,6 +207,11 @@ def extract_bill_data(pdf_file):
             data["raw_text"] = full_text
             T = full_text
 
+            # ── Table-based extraction (catches Jio CDR tables) ───────────
+            tbl_calls, tbl_sessions = extract_calls_from_tables(pdf)
+            data["call_records"].extend(tbl_calls)
+            data["data_session_records"].extend(tbl_sessions)
+
             # Phone
             m = re.search(r'(?:mobile|phone|number|no\.?)[:\s]+([6-9]\d{9})', T, re.I)
             if not m: m = re.search(r'\b([6-9]\d{9})\b', T)
@@ -323,6 +328,26 @@ def extract_bill_data(pdf_file):
                     "charged_mb":   float(m2.group(8)),
                     "charge":       float(m2.group(9)),
                 })
+
+            # Deduplicate call records (table + text regex may overlap)
+            seen_calls = set()
+            unique_calls = []
+            for r in data["call_records"]:
+                key = (r.get("call_date",""), r.get("start_time",""), r.get("called_number",""))
+                if key not in seen_calls:
+                    seen_calls.add(key)
+                    unique_calls.append(r)
+            data["call_records"] = unique_calls
+
+            # Deduplicate data sessions
+            seen_ds = set()
+            unique_ds = []
+            for r in data["data_session_records"]:
+                key = (r.get("start_date",""), r.get("start_time",""), r.get("destination",""))
+                if key not in seen_ds:
+                    seen_ds.add(key)
+                    unique_ds.append(r)
+            data["data_session_records"] = unique_ds
 
             # SMS records
             sms_pat = re.compile(r'(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s+(\d{1,2}:\d{2}(?::\d{2})?)\s+(?:SMS|sms|text)\s+([6-9]\d{9}|\+91\d{10}|\w+)', re.I)
@@ -906,6 +931,8 @@ if page == "upload":
                 st.info(f"Found {len(bd['call_records'])} call records.")
             else:
                 st.warning("No call records auto-detected. Add them manually below.")
+                with st.expander("🔍 Debug: view raw extracted text (first 2000 chars)"):
+                    st.text(bd.get("raw_text","")[:2000])
             if bd.get("data_session_records"):
                 st.session_state["df_data_sessions"] = pd.DataFrame(bd["data_session_records"])
                 st.info(f"Found {len(bd['data_session_records'])} data session records.")
