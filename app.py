@@ -59,34 +59,198 @@ TELECOM_MCC_MNC = {
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap');
-html,body,[class*="css"]{{font-family:'Inter',sans-serif;background:{BG};color:{TXT};}}
-[data-testid="stSidebar"]{{background-color:#FDF6F8!important;border-right:1px solid {BORDER}!important;}}
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ── Base ── */
+html,body,[class*="css"]{{
+    font-family:'Inter',sans-serif;
+    background:{BG};
+    color:{TXT};
+}}
+
+/* Subtle dot-grid texture on body */
+[data-testid="stAppViewContainer"]{{
+    background-image: radial-gradient(circle, {BORDER} 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-color: {BG};
+}}
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"]{{
+    background: linear-gradient(160deg, #FDF6F8 0%, #F5EEF5 100%) !important;
+    border-right: 1px solid {BORDER} !important;
+    box-shadow: 2px 0 12px rgba(168,92,118,0.06);
+}}
 [data-testid="stSidebar"] .block-container{{padding-top:1rem!important;}}
-.brand-name{{font-family:'Playfair Display',Georgia,serif;font-size:26px;font-weight:700;color:{PINK_D};letter-spacing:-0.5px;margin:0;line-height:1.2;}}
+
+/* ── Brand ── */
+.brand-name{{
+    font-family:'Playfair Display',Georgia,serif;
+    font-size:27px;font-weight:700;
+    background: linear-gradient(135deg, {PINK_D} 0%, #C4607A 60%, #8B4A5E 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    background-clip:text;
+    letter-spacing:-0.5px;margin:0;line-height:1.2;
+}}
 .brand-tagline{{font-size:11px;color:{HINT};margin-top:3px;letter-spacing:0.3px;margin-bottom:0;}}
-.section-header{{font-size:11px;font-weight:700;letter-spacing:1.4px;color:{HINT};text-transform:uppercase;margin:18px 0 6px 0;padding:0;}}
-.page-title{{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:{TXT};margin:0;}}
-.page-sub{{font-size:12px;color:{HINT};margin-top:3px;}}
-.card{{background:{WHITE};border:1px solid {BORDER};border-radius:12px;padding:18px 20px;margin-bottom:14px;}}
-.info-pill{{background:{PINK_L};color:{PINK_D};font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;display:inline-block;}}
-.green-pill{{background:{GREEN_L};color:{GREEN};font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;display:inline-block;}}
-.ai-badge{{background:{GREEN_L};border:1px solid #C0DD97;border-radius:10px;padding:10px 14px;font-size:11px;color:#3E6E38;line-height:1.6;margin-top:12px;}}
-.alert-red{{background:{ALERT_R};border:1px solid #F09595;border-radius:10px;padding:12px 16px;color:{ALERT_RT};font-size:12px;margin-bottom:10px;}}
-.alert-yellow{{background:#FAEEDA;border:1px solid {ALERT_Y};border-radius:10px;padding:12px 16px;color:{ALERT_YT};font-size:12px;margin-bottom:10px;}}
-.alert-green{{background:{ALERT_G};border:1px solid #A8CE9E;border-radius:10px;padding:12px 16px;color:{ALERT_GT};font-size:12px;margin-bottom:10px;}}
-.stButton>button{{background:{PINK}!important;color:white!important;border:none!important;border-radius:8px!important;font-weight:600!important;font-size:12px!important;padding:8px 20px!important;}}
-.stButton>button:hover{{background:{PINK_D}!important;}}
-.stDownloadButton>button{{background:transparent!important;color:{PINK_D}!important;border:1px solid {BORDER}!important;border-radius:8px!important;font-weight:600!important;font-size:11px!important;}}
-div[data-testid="metric-container"]{{background:{WHITE};border:1px solid {BORDER};border-radius:12px;padding:14px 16px;}}
+.section-header{{
+    font-size:10px;font-weight:700;letter-spacing:1.6px;color:{HINT};
+    text-transform:uppercase;margin:20px 0 6px 0;padding:0;
+}}
+
+/* ── Page titles ── */
+.page-title{{
+    font-family:'Playfair Display',serif;font-size:24px;font-weight:700;
+    color:{TXT};margin:0;letter-spacing:-0.3px;
+}}
+.page-sub{{font-size:12px;color:{HINT};margin-top:4px;}}
+
+/* ── Glass card ── */
+.card{{
+    background:rgba(255,255,255,0.72);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border:1px solid rgba(237,216,226,0.7);
+    border-radius:16px;padding:20px 22px;margin-bottom:14px;
+    box-shadow:0 2px 16px rgba(168,92,118,0.07);
+    transition:transform 0.18s ease,box-shadow 0.18s ease;
+}}
+.card:hover{{transform:translateY(-2px);box-shadow:0 6px 24px rgba(168,92,118,0.13);}}
+
+/* ── Accent stat card ── */
+.stat-card{{
+    background:rgba(255,255,255,0.8);
+    border-left:4px solid {PINK};
+    border-radius:0 14px 14px 0;
+    padding:14px 18px;margin-bottom:10px;
+    box-shadow:0 2px 10px rgba(168,92,118,0.08);
+}}
+.stat-card.green{{border-left-color:{GREEN};}}
+
+/* ── Pills ── */
+.info-pill{{
+    background:linear-gradient(135deg,{PINK_L},{PINK_M});
+    color:{PINK_D};font-size:10px;font-weight:700;
+    padding:4px 12px;border-radius:20px;display:inline-block;
+    box-shadow:0 1px 4px rgba(168,92,118,0.15);
+}}
+.green-pill{{
+    background:linear-gradient(135deg,{GREEN_L},#C8E8C0);
+    color:#3E6E38;font-size:10px;font-weight:700;
+    padding:4px 12px;border-radius:20px;display:inline-block;
+    box-shadow:0 1px 4px rgba(106,158,98,0.15);
+}}
+
+/* ── AI badge ── */
+.ai-badge{{
+    background:linear-gradient(135deg,{GREEN_L} 0%,rgba(255,255,255,0.6) 100%);
+    border:1px solid #C0DD97;border-radius:12px;
+    padding:10px 14px;font-size:11px;color:#3E6E38;
+    line-height:1.6;margin-top:12px;
+    backdrop-filter:blur(8px);
+}}
+
+/* ── Alerts ── */
+.alert-red{{
+    background:linear-gradient(135deg,{ALERT_R},{PINK_L});
+    border:1px solid #F09595;border-radius:12px;
+    padding:13px 16px;color:{ALERT_RT};font-size:12px;margin-bottom:10px;
+    box-shadow:0 2px 8px rgba(163,45,45,0.08);
+}}
+.alert-yellow{{
+    background:linear-gradient(135deg,#FAEEDA,#FFF3DC);
+    border:1px solid {ALERT_Y};border-radius:12px;
+    padding:13px 16px;color:{ALERT_YT};font-size:12px;margin-bottom:10px;
+}}
+.alert-green{{
+    background:linear-gradient(135deg,{ALERT_G},rgba(255,255,255,0.6));
+    border:1px solid #A8CE9E;border-radius:12px;
+    padding:13px 16px;color:{ALERT_GT};font-size:12px;margin-bottom:10px;
+}}
+
+/* ── Buttons ── */
+.stButton>button{{
+    background:linear-gradient(135deg,{PINK} 0%,{PINK_D} 100%) !important;
+    color:white !important;border:none !important;
+    border-radius:10px !important;font-weight:600 !important;
+    font-size:12px !important;padding:9px 22px !important;
+    box-shadow:0 3px 10px rgba(168,92,118,0.3) !important;
+    transition:all 0.18s ease !important;letter-spacing:0.2px;
+}}
+.stButton>button:hover{{
+    background:linear-gradient(135deg,{PINK_D} 0%,#8B4A5E 100%) !important;
+    box-shadow:0 5px 16px rgba(168,92,118,0.4) !important;
+    transform:translateY(-1px);
+}}
+.stDownloadButton>button{{
+    background:transparent !important;color:{PINK_D} !important;
+    border:1.5px solid {BORDER} !important;border-radius:10px !important;
+    font-weight:600 !important;font-size:11px !important;
+    transition:all 0.15s ease !important;
+}}
+.stDownloadButton>button:hover{{
+    border-color:{PINK} !important;
+    box-shadow:0 2px 8px rgba(168,92,118,0.15) !important;
+}}
+
+/* ── Metrics ── */
+div[data-testid="metric-container"]{{
+    background:rgba(255,255,255,0.8);
+    border:1px solid {BORDER};border-radius:14px;
+    padding:16px 18px;
+    box-shadow:0 2px 10px rgba(168,92,118,0.06);
+    backdrop-filter:blur(8px);
+}}
+
+/* ── Tabs ── */
 .stTabs [data-baseweb="tab"]{{font-size:12px;font-weight:600;color:{MUTED};}}
 .stTabs [aria-selected="true"]{{color:{PINK_D}!important;border-bottom-color:{PINK}!important;}}
-.stTextInput>div>input{{border:1px solid {BORDER}!important;border-radius:8px!important;background:{WHITE}!important;font-size:13px;}}
-.compare-col{{background:{WHITE};border:1px solid {BORDER};border-radius:12px;padding:16px;}}
-.device-card{{background:{GREEN_BG};border:1px solid {GREEN_L};border-radius:12px;padding:14px 16px;margin-bottom:10px;}}
+
+/* ── Inputs ── */
+.stTextInput>div>input,.stTextArea>div>textarea{{
+    border:1.5px solid {BORDER} !important;border-radius:10px !important;
+    background:rgba(255,255,255,0.85) !important;font-size:13px;
+    transition:border-color 0.15s ease;
+}}
+.stTextInput>div>input:focus,.stTextArea>div>textarea:focus{{
+    border-color:{PINK} !important;
+    box-shadow:0 0 0 3px rgba(212,132,158,0.12) !important;
+}}
+
+/* ── Device cards ── */
+.device-card{{
+    background:linear-gradient(135deg,{GREEN_BG},{WHITE});
+    border:1px solid {GREEN_L};border-radius:14px;
+    padding:14px 16px;margin-bottom:10px;
+    box-shadow:0 2px 8px rgba(106,158,98,0.08);
+    transition:transform 0.15s ease;
+}}
+.device-card:hover{{transform:translateY(-1px);}}
 .device-label{{font-size:9px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:{GREEN};margin-bottom:3px;}}
 .device-val{{font-size:14px;font-weight:600;color:#3E6E38;}}
-.footer-note{{font-size:10px;color:{HINT};text-align:center;margin-top:24px;padding:12px;border-top:1px solid {BORDER};}}
+
+/* ── Upload drop zone ── */
+[data-testid="stFileUploader"]{{
+    border:2px dashed {PINK_M} !important;
+    border-radius:16px !important;
+    background:rgba(247,232,238,0.3) !important;
+    transition:border-color 0.2s ease;
+}}
+[data-testid="stFileUploader"]:hover{{border-color:{PINK} !important;}}
+
+/* ── Footer ── */
+.footer-note{{
+    font-size:10px;color:{HINT};text-align:center;
+    margin-top:24px;padding:14px;
+    border-top:1px solid {BORDER};
+    background:linear-gradient(135deg,rgba(247,232,238,0.4),rgba(216,237,210,0.3));
+    border-radius:0 0 12px 12px;
+}}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{{width:5px;height:5px;}}
+::-webkit-scrollbar-track{{background:{BG};}}
+::-webkit-scrollbar-thumb{{background:{PINK_M};border-radius:10px;}}
+::-webkit-scrollbar-thumb:hover{{background:{PINK};}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -388,19 +552,36 @@ def parse_manual_calls(text):
     return records
 
 
-def get_location(mcc, mnc, cell_id=None, lac=None):
+def get_location(mcc, mnc, cell_id=None, lac=None, api_token=""):
+    """
+    Calls Unwired Labs geolocation API with a real token.
+    Falls back to country-level centroid if API fails or token missing.
+    """
     MCC_DEFAULTS = {"404": (20.5937, 78.9629, "India"), "405": (20.5937, 78.9629, "India")}
-    try:
-        payload = {"token":"test","radio":"gsm","mcc":int(mcc),"mnc":int(mnc),
-                   "cells":[{"lac":int(lac) if lac else 1,"cid":int(cell_id) if cell_id else 1}],"address":1}
-        r = requests.post("https://us1.unwiredlabs.com/v2/process.php", json=payload, timeout=4)
-        if r.status_code == 200:
-            d = r.json()
-            if d.get("status") == "ok":
-                return d.get("lat"), d.get("lon"), d.get("address",{}).get("city","India")
-    except: pass
-    if mcc in MCC_DEFAULTS:
-        return MCC_DEFAULTS[mcc]
+    if api_token and api_token.strip():
+        try:
+            payload = {
+                "token": api_token.strip(),
+                "radio": "gsm",
+                "mcc": int(mcc),
+                "mnc": int(mnc),
+                "cells": [{"lac": int(lac) if lac else 0, "cid": int(cell_id) if cell_id else 0}],
+                "address": 1
+            }
+            r = requests.post("https://us1.unwiredlabs.com/v2/process.php", json=payload, timeout=6)
+            if r.status_code == 200:
+                d = r.json()
+                if d.get("status") == "ok":
+                    addr = d.get("address", "")
+                    city = addr if isinstance(addr, str) else (addr.get("city") or addr.get("state") or "India")
+                    return d.get("lat"), d.get("lon"), city
+                else:
+                    return None, None, f"API error: {d.get('message','Unknown error')}"
+        except Exception as e:
+            return None, None, f"Request failed: {e}"
+    # No token — return country centroid
+    if str(mcc) in MCC_DEFAULTS:
+        return MCC_DEFAULTS[str(mcc)]
     return None, None, None
 
 
@@ -1381,7 +1562,7 @@ elif page == "data":
 # ════════════════════ LOCATION ════════════════════════
 elif page == "location":
     st.markdown('<p class="page-title">Network triangulation</p>', unsafe_allow_html=True)
-    st.markdown('<p class="page-sub">Enter MCC/MNC and Cell ID to see your approximate network location.</p>', unsafe_allow_html=True)
+    st.markdown('<p class="page-sub">Enter your Unwired Labs token + Cell ID to pinpoint the tower location.</p>', unsafe_allow_html=True)
     st.markdown("---")
 
     meta = st.session_state.meta
@@ -1394,19 +1575,38 @@ elif page == "location":
         mnc_def = known[0][1] if known else ""
         if known:
             st.markdown(f'<div class="green-pill">Auto-detected: {telecom} → MCC {mcc_def}, MNC {mnc_def}</div>', unsafe_allow_html=True)
-            st.caption("")
+            st.markdown("")
+
+        api_token = st.text_input(
+            "Unwired Labs API token",
+            type="password",
+            placeholder="Paste your token from unwiredlabs.com",
+            help="Get a free token at unwiredlabs.com. Without it only a country-level fallback is shown."
+        )
         mcc     = st.text_input("MCC", value=mcc_def, placeholder="404")
         mnc     = st.text_input("MNC", value=mnc_def, placeholder="10")
-        cell_id = st.text_input("Cell ID (optional)", placeholder="From bill / Android settings")
-        lac     = st.text_input("LAC (optional)", placeholder="Location area code")
+        cell_id = st.text_input("Cell ID", placeholder="From bill / Android settings / Network Cell Info app")
+        lac     = st.text_input("LAC", placeholder="Location area code")
 
         if st.button("Locate on map"):
-            lat, lon, city = get_location(mcc, mnc, cell_id, lac)
-            st.session_state.meta.update({"mcc":mcc,"mnc":mnc,"cell_id":cell_id,"lac":lac,
-                "approx_lat":lat,"approx_lon":lon,"approx_location":city or "India"})
+            if not cell_id or not lac:
+                st.warning("Cell ID and LAC are needed for accurate location. Without them the result will be approximate.")
+            with st.spinner("Querying Unwired Labs..."):
+                lat, lon, city = get_location(mcc, mnc, cell_id, lac, api_token)
+            if lat and lon and not str(city).startswith("API error") and not str(city).startswith("Request failed"):
+                st.session_state.meta.update({
+                    "mcc": mcc, "mnc": mnc, "cell_id": cell_id, "lac": lac,
+                    "approx_lat": lat, "approx_lon": lon, "approx_location": city or "India"
+                })
+                st.success(f"Located: {city} ({round(lat,5)}, {round(lon,5)})")
+            elif city and (str(city).startswith("API error") or str(city).startswith("Request failed")):
+                st.error(f"Could not locate: {city}")
+            else:
+                st.error("Location not found. Check your MCC/MNC/Cell ID/LAC values.")
 
         st.markdown("---")
         st.caption("**Where to find Cell ID / LAC:**\n- Android: Settings → About Phone → Status\n- Apps: Network Cell Info, OpenSignal\n- BSNL/Airtel detailed CDR may include tower data")
+        st.caption("**Get a free API token:** [unwiredlabs.com](https://unwiredlabs.com) — free tier includes 100 queries/day.")
 
         if known:
             st.markdown(f"#### Known codes for {telecom}")
@@ -1418,26 +1618,28 @@ elif page == "location":
         city = st.session_state.meta.get("approx_location","")
         if lat and lon:
             fig_map = go.Figure(go.Scattermapbox(
-                lat=[lat], lon=[lon], mode="markers",
-                marker=go.scattermapbox.Marker(size=16, color=PINK),
-                text=[f"{telecom} · {city}"]
+                lat=[lat], lon=[lon], mode="markers+text",
+                marker=go.scattermapbox.Marker(size=18, color=PINK),
+                text=[f"{telecom} · {city}"],
+                textposition="top right"
             ))
             fig_map.update_layout(
                 mapbox_style="open-street-map",
-                mapbox=dict(center=dict(lat=lat,lon=lon), zoom=8),
-                margin=dict(l=0,r=0,t=0,b=0), height=440
+                mapbox=dict(center=dict(lat=lat, lon=lon), zoom=12),
+                margin=dict(l=0, r=0, t=0, b=0), height=440
             )
             st.plotly_chart(fig_map, use_container_width=True)
-            st.caption(f"Approximate: {city} ({round(lat,4)}, {round(lon,4)}). Based on MCC/MNC only — not GPS-precise.")
+            st.caption(f"Tower location: {city} · ({round(lat,5)}, {round(lon,5)}) · Accuracy depends on Cell ID/LAC precision.")
         else:
             st.markdown(f"""
-            <div style="background:{GREEN_BG};border:1px solid {GREEN_L};border-radius:12px;
+            <div style="background:{GREEN_BG};border:1px solid {GREEN_L};border-radius:16px;
                 padding:40px 20px;text-align:center;color:#3E6E38;height:440px;
                 display:flex;align-items:center;justify-content:center;flex-direction:column;">
                 <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#6A9E62" stroke-width="2">
                     <circle cx="20" cy="16" r="8"/><path d="M20 40C20 40 6 26 6 18a14 14 0 0 1 28 0C34 26 20 40 20 40z"/>
                 </svg>
-                <p style="margin-top:14px;font-size:13px;font-weight:600;">Enter MCC/MNC and click Locate</p>
+                <p style="margin-top:14px;font-size:13px;font-weight:600;">Enter token + Cell ID and click Locate</p>
+                <p style="font-size:11px;color:{HINT};margin-top:6px;">Zoom level 12 for tower-level precision</p>
             </div>""", unsafe_allow_html=True)
 
 # ════════════════════ BILLING ═════════════════════════
