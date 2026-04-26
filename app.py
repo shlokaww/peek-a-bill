@@ -68,18 +68,54 @@ html,body,[class*="css"]{{
     color:{TXT};
 }}
 
-/* Subtle dot-grid texture on body */
-[data-testid="stAppViewContainer"]{{
-    background-image: radial-gradient(circle, {BORDER} 1px, transparent 1px);
-    background-size: 28px 28px;
-    background-color: {BG};
+/* ── Decorative background — soft pink blobs + floral SVG watermark ── */
+[data-testid="stAppViewContainer"]::before {{
+    content:'';
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    pointer-events:none;z-index:0;
+    background:
+        radial-gradient(ellipse 520px 380px at 8% 12%,  rgba(212,132,158,0.13) 0%, transparent 70%),
+        radial-gradient(ellipse 400px 300px at 92% 8%,  rgba(239,200,216,0.18) 0%, transparent 65%),
+        radial-gradient(ellipse 350px 280px at 85% 88%, rgba(106,158,98,0.10)  0%, transparent 65%),
+        radial-gradient(ellipse 300px 220px at 5%  90%, rgba(216,237,210,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse 200px 160px at 50% 50%, rgba(247,232,238,0.08) 0%, transparent 70%);
+    background-color:{BG};
+}}
+
+/* Floral SVG watermark — large rose outline, bottom-right */
+[data-testid="stAppViewContainer"]::after {{
+    content:'';
+    position:fixed;bottom:-60px;right:-60px;
+    width:420px;height:420px;
+    pointer-events:none;z-index:0;
+    opacity:0.055;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cpath fill='%23A85C76' d='M100 10 C60 10 30 40 30 80 C30 120 60 150 100 190 C140 150 170 120 170 80 C170 40 140 10 100 10Z'/%3E%3Cpath fill='%23A85C76' d='M100 30 C75 30 55 50 55 75 C55 100 75 120 100 140 C125 120 145 100 145 75 C145 50 125 30 100 30Z' opacity='0.6'/%3E%3Ccircle fill='%23A85C76' cx='100' cy='85' r='18' opacity='0.4'/%3E%3Cpath fill='%236A9E62' d='M100 140 C90 155 70 165 55 160 C60 145 75 138 100 140Z' opacity='0.7'/%3E%3Cpath fill='%236A9E62' d='M100 140 C110 155 130 165 145 160 C140 145 125 138 100 140Z' opacity='0.7'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-size:contain;
+}}
+
+/* Second floral — top left, smaller */
+[data-testid="stMain"]::before {{
+    content:'';
+    position:fixed;top:-40px;left:260px;
+    width:260px;height:260px;
+    pointer-events:none;z-index:0;
+    opacity:0.04;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle fill='none' stroke='%23A85C76' stroke-width='4' cx='100' cy='100' r='70'/%3E%3Ccircle fill='none' stroke='%23A85C76' stroke-width='3' cx='100' cy='100' r='50'/%3E%3Ccircle fill='none' stroke='%236A9E62' stroke-width='2' cx='100' cy='100' r='30'/%3E%3Cpath fill='%23A85C76' d='M100 30 C85 55 85 75 100 100 C115 75 115 55 100 30Z' opacity='0.5'/%3E%3Cpath fill='%23A85C76' d='M30 100 C55 85 75 85 100 100 C75 115 55 115 30 100Z' opacity='0.5'/%3E%3Cpath fill='%23A85C76' d='M100 170 C115 145 115 125 100 100 C85 125 85 145 100 170Z' opacity='0.5'/%3E%3Cpath fill='%23A85C76' d='M170 100 C145 115 125 115 100 100 C125 85 145 85 170 100Z' opacity='0.5'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-size:contain;
+}}
+
+/* Ensure content sits above decorations */
+[data-testid="stMain"] > div, [data-testid="stSidebar"] > div {{
+    position:relative;z-index:1;
 }}
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"]{{
-    background: linear-gradient(160deg, #FDF6F8 0%, #F5EEF5 100%) !important;
+    background: linear-gradient(170deg, #FEF7F9 0%, #F8F0F5 50%, #F0F5EE 100%) !important;
     border-right: 1px solid {BORDER} !important;
-    box-shadow: 2px 0 12px rgba(168,92,118,0.06);
+    box-shadow: 2px 0 16px rgba(168,92,118,0.08);
 }}
 [data-testid="stSidebar"] .block-container{{padding-top:1rem!important;}}
 
@@ -98,6 +134,26 @@ html,body,[class*="css"]{{
     text-transform:uppercase;margin:20px 0 6px 0;padding:0;
 }}
 
+/* Nav icon tint — make sidebar button emojis feel pink-tinted via filter */
+[data-testid="stSidebar"] .stButton>button {{
+    background: transparent !important;
+    color: {PINK_D} !important;
+    border: 1px solid transparent !important;
+    border-radius: 10px !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
+    padding: 8px 14px !important;
+    box-shadow: none !important;
+    text-align: left !important;
+    transition: all 0.15s ease !important;
+}}
+[data-testid="stSidebar"] .stButton>button:hover {{
+    background: linear-gradient(135deg, {PINK_L}, rgba(216,237,210,0.4)) !important;
+    border-color: {BORDER} !important;
+    box-shadow: 0 2px 8px rgba(168,92,118,0.1) !important;
+    transform: translateX(3px) !important;
+}}
+
 /* ── Page titles ── */
 .page-title{{
     font-family:'Playfair Display',serif;font-size:24px;font-weight:700;
@@ -108,13 +164,13 @@ html,body,[class*="css"]{{
 /* ── Glass card ── */
 .card{{
     background:rgba(255,255,255,0.72);
-    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
     border:1px solid rgba(237,216,226,0.7);
-    border-radius:16px;padding:20px 22px;margin-bottom:14px;
-    box-shadow:0 2px 16px rgba(168,92,118,0.07);
+    border-radius:18px;padding:20px 22px;margin-bottom:14px;
+    box-shadow:0 2px 20px rgba(168,92,118,0.08);
     transition:transform 0.18s ease,box-shadow 0.18s ease;
 }}
-.card:hover{{transform:translateY(-2px);box-shadow:0 6px 24px rgba(168,92,118,0.13);}}
+.card:hover{{transform:translateY(-2px);box-shadow:0 8px 28px rgba(168,92,118,0.14);}}
 
 /* ── Accent stat card ── */
 .stat-card{{
@@ -130,56 +186,58 @@ html,body,[class*="css"]{{
 .info-pill{{
     background:linear-gradient(135deg,{PINK_L},{PINK_M});
     color:{PINK_D};font-size:10px;font-weight:700;
-    padding:4px 12px;border-radius:20px;display:inline-block;
-    box-shadow:0 1px 4px rgba(168,92,118,0.15);
+    padding:4px 14px;border-radius:20px;display:inline-block;
+    box-shadow:0 1px 6px rgba(168,92,118,0.18);
+    letter-spacing:0.2px;
 }}
 .green-pill{{
     background:linear-gradient(135deg,{GREEN_L},#C8E8C0);
     color:#3E6E38;font-size:10px;font-weight:700;
-    padding:4px 12px;border-radius:20px;display:inline-block;
-    box-shadow:0 1px 4px rgba(106,158,98,0.15);
+    padding:4px 14px;border-radius:20px;display:inline-block;
+    box-shadow:0 1px 6px rgba(106,158,98,0.18);
+    letter-spacing:0.2px;
 }}
 
 /* ── AI badge ── */
 .ai-badge{{
-    background:linear-gradient(135deg,{GREEN_L} 0%,rgba(255,255,255,0.6) 100%);
-    border:1px solid #C0DD97;border-radius:12px;
-    padding:10px 14px;font-size:11px;color:#3E6E38;
-    line-height:1.6;margin-top:12px;
+    background:linear-gradient(135deg,{GREEN_L} 0%,rgba(255,255,255,0.7) 100%);
+    border:1px solid #C0DD97;border-radius:14px;
+    padding:11px 14px;font-size:11px;color:#3E6E38;
+    line-height:1.7;margin-top:12px;
     backdrop-filter:blur(8px);
 }}
 
 /* ── Alerts ── */
 .alert-red{{
     background:linear-gradient(135deg,{ALERT_R},{PINK_L});
-    border:1px solid #F09595;border-radius:12px;
+    border:1px solid #F09595;border-radius:14px;
     padding:13px 16px;color:{ALERT_RT};font-size:12px;margin-bottom:10px;
     box-shadow:0 2px 8px rgba(163,45,45,0.08);
 }}
 .alert-yellow{{
     background:linear-gradient(135deg,#FAEEDA,#FFF3DC);
-    border:1px solid {ALERT_Y};border-radius:12px;
+    border:1px solid {ALERT_Y};border-radius:14px;
     padding:13px 16px;color:{ALERT_YT};font-size:12px;margin-bottom:10px;
 }}
 .alert-green{{
     background:linear-gradient(135deg,{ALERT_G},rgba(255,255,255,0.6));
-    border:1px solid #A8CE9E;border-radius:12px;
+    border:1px solid #A8CE9E;border-radius:14px;
     padding:13px 16px;color:{ALERT_GT};font-size:12px;margin-bottom:10px;
 }}
 
-/* ── Buttons ── */
-.stButton>button{{
+/* ── Main action buttons ── */
+[data-testid="stMain"] .stButton>button{{
     background:linear-gradient(135deg,{PINK} 0%,{PINK_D} 100%) !important;
     color:white !important;border:none !important;
-    border-radius:10px !important;font-weight:600 !important;
-    font-size:12px !important;padding:9px 22px !important;
-    box-shadow:0 3px 10px rgba(168,92,118,0.3) !important;
-    transition:all 0.18s ease !important;letter-spacing:0.2px;
+    border-radius:12px !important;font-weight:600 !important;
+    font-size:12px !important;padding:9px 24px !important;
+    box-shadow:0 4px 14px rgba(168,92,118,0.32) !important;
+    transition:all 0.18s ease !important;letter-spacing:0.3px;
 }}
-.stButton>button:hover{{
+[data-testid="stMain"] .stButton>button:hover{{
     background:linear-gradient(135deg,{PINK_D} 0%,#8B4A5E 100%) !important;
-    box-shadow:0 5px 16px rgba(168,92,118,0.4) !important;
-    transform:translateY(-1px);
+    box-shadow:0 6px 20px rgba(168,92,118,0.42) !important;
+    transform:translateY(-1px) !important;
 }}
 .stDownloadButton>button{{
     background:transparent !important;color:{PINK_D} !important;
@@ -189,16 +247,17 @@ html,body,[class*="css"]{{
 }}
 .stDownloadButton>button:hover{{
     border-color:{PINK} !important;
+    background:rgba(247,232,238,0.4) !important;
     box-shadow:0 2px 8px rgba(168,92,118,0.15) !important;
 }}
 
 /* ── Metrics ── */
 div[data-testid="metric-container"]{{
-    background:rgba(255,255,255,0.8);
-    border:1px solid {BORDER};border-radius:14px;
+    background:rgba(255,255,255,0.82);
+    border:1px solid {BORDER};border-radius:16px;
     padding:16px 18px;
-    box-shadow:0 2px 10px rgba(168,92,118,0.06);
-    backdrop-filter:blur(8px);
+    box-shadow:0 2px 12px rgba(168,92,118,0.07);
+    backdrop-filter:blur(10px);
 }}
 
 /* ── Tabs ── */
@@ -207,13 +266,13 @@ div[data-testid="metric-container"]{{
 
 /* ── Inputs ── */
 .stTextInput>div>input,.stTextArea>div>textarea{{
-    border:1.5px solid {BORDER} !important;border-radius:10px !important;
-    background:rgba(255,255,255,0.85) !important;font-size:13px;
-    transition:border-color 0.15s ease;
+    border:1.5px solid {BORDER} !important;border-radius:12px !important;
+    background:rgba(255,255,255,0.88) !important;font-size:13px;
+    transition:border-color 0.15s ease,box-shadow 0.15s ease;
 }}
 .stTextInput>div>input:focus,.stTextArea>div>textarea:focus{{
     border-color:{PINK} !important;
-    box-shadow:0 0 0 3px rgba(212,132,158,0.12) !important;
+    box-shadow:0 0 0 3px rgba(212,132,158,0.14) !important;
 }}
 
 /* ── Device cards ── */
@@ -231,19 +290,25 @@ div[data-testid="metric-container"]{{
 /* ── Upload drop zone ── */
 [data-testid="stFileUploader"]{{
     border:2px dashed {PINK_M} !important;
-    border-radius:16px !important;
-    background:rgba(247,232,238,0.3) !important;
-    transition:border-color 0.2s ease;
+    border-radius:18px !important;
+    background:rgba(247,232,238,0.25) !important;
+    transition:border-color 0.2s ease,background 0.2s ease;
 }}
-[data-testid="stFileUploader"]:hover{{border-color:{PINK} !important;}}
+[data-testid="stFileUploader"]:hover{{
+    border-color:{PINK} !important;
+    background:rgba(247,232,238,0.45) !important;
+}}
+
+/* ── Divider ── */
+hr{{border-color:{BORDER}!important;opacity:0.6;}}
 
 /* ── Footer ── */
 .footer-note{{
     font-size:10px;color:{HINT};text-align:center;
     margin-top:24px;padding:14px;
     border-top:1px solid {BORDER};
-    background:linear-gradient(135deg,rgba(247,232,238,0.4),rgba(216,237,210,0.3));
-    border-radius:0 0 12px 12px;
+    background:linear-gradient(135deg,rgba(247,232,238,0.35),rgba(216,237,210,0.25));
+    border-radius:0 0 14px 14px;
 }}
 
 /* ── Scrollbar ── */
@@ -251,6 +316,9 @@ div[data-testid="metric-container"]{{
 ::-webkit-scrollbar-track{{background:{BG};}}
 ::-webkit-scrollbar-thumb{{background:{PINK_M};border-radius:10px;}}
 ::-webkit-scrollbar-thumb:hover{{background:{PINK};}}
+
+/* ── Dataframe ── */
+[data-testid="stDataFrame"]{{border-radius:14px;overflow:hidden;}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1163,21 +1231,34 @@ def generate_pdf(bill_data, df, figs, meta, alerts):
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown('<p class="brand-name">Peek-a-Bill</p>', unsafe_allow_html=True)
-    st.markdown('<p class="brand-tagline">your calls, caught red-handed 🔍</p>', unsafe_allow_html=True)
+    st.markdown('''
+    <div style="display:flex;align-items:center;gap:10px;padding:4px 0 8px 0;">
+        <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="20" cy="20" r="19" fill="#F7E8EE" stroke="#EDD8E2" stroke-width="1.5"/>
+            <path d="M20 8 C14 8 10 13 10 18 C10 25 20 32 20 32 C20 32 30 25 30 18 C30 13 26 8 20 8Z" fill="#D4849E" opacity="0.85"/>
+            <circle cx="20" cy="18" r="5" fill="#A85C76" opacity="0.7"/>
+            <path d="M20 32 C17 36 13 37 11 35 C13 31 17 30 20 32Z" fill="#6A9E62" opacity="0.8"/>
+            <path d="M20 32 C23 36 27 37 29 35 C27 31 23 30 20 32Z" fill="#6A9E62" opacity="0.8"/>
+        </svg>
+        <div>
+            <p class="brand-name">Peek-a-Bill</p>
+            <p class="brand-tagline">your calls, caught red-handed ✦</p>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
     st.markdown("---")
 
     pages = {
-        "upload":   ("📄", "Upload bill"),
-        "dashboard":("📊", "Dashboard"),
-        "calls":    ("📞", "Call insights"),
-        "alerts":   ("🚨", "Suspicious alerts"),
-        "data":     ("📡", "Data usage"),
-        "location": ("🗺", "Location (MCC/MNC)"),
-        "billing":  ("💳", "Billing summary"),
-        "device":   ("📱", "Device info"),
-        "compare":  ("⚖",  "Compare bills"),
-        "report":   ("📥", "Generate report"),
+        "upload":   ("✦", "Upload bill"),
+        "dashboard":("◈", "Dashboard"),
+        "calls":    ("◎", "Call insights"),
+        "alerts":   ("◉", "Suspicious alerts"),
+        "data":     ("◌", "Data usage"),
+        "location": ("⊕", "Location (MCC/MNC)"),
+        "billing":  ("◇", "Billing summary"),
+        "device":   ("◻", "Device info"),
+        "compare":  ("⊞", "Compare bills"),
+        "report":   ("↓", "Generate report"),
     }
 
     st.markdown('<p class="section-header">Upload</p>', unsafe_allow_html=True)
