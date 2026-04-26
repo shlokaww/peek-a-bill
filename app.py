@@ -457,13 +457,33 @@ def build_charts(df, suffix=""):
     try:
         daily = df.groupby(df["parsed_date"].dt.date).size().reset_index()
         daily.columns = ["Date", "Calls"]
-        daily["Date"] = daily["Date"].astype(str)
+        # Keep as proper date objects so plotly renders real date labels
+        daily["Date"] = pd.to_datetime(daily["Date"])
         if len(daily) > 0:
             fig_daily = px.bar(daily, x="Date", y="Calls",
                 color_discrete_sequence=[PINK],
                 labels={"Date": "Date", "Calls": "Number of Calls"})
-            fig_daily = _layout(fig_daily, "Daily call activity", "Date", "Number of Calls")
-            fig_daily.update_xaxes(tickangle=-45)
+            fig_daily.update_layout(
+                plot_bgcolor=WHITE, paper_bgcolor=WHITE,
+                font_family="Inter", font_color=TXT,
+                title_text=f"Daily call activity<br><sup style='color:{HINT}'>{period_label}</sup>" if period_label else "Daily call activity",
+                title_font_family="Playfair Display", title_font_size=15,
+                margin=dict(l=60, r=20, t=55, b=80),
+                xaxis=dict(
+                    title="Date", gridcolor=BORDER,
+                    tickformat="%d %b",
+                    dtick="D1",
+                    tickangle=-45,
+                    tickfont=dict(size=10),
+                    title_font=dict(size=11),
+                ),
+                yaxis=dict(
+                    title="Number of Calls", gridcolor=BORDER,
+                    tickfont=dict(size=10),
+                    title_font=dict(size=11),
+                    tickformat="d",
+                ),
+            )
             figs["daily_calls"] = fig_daily
     except: pass
 
@@ -474,21 +494,39 @@ def build_charts(df, suffix=""):
             total_seconds=("talk_time_seconds", "sum")
         ).sort_values("total_calls", ascending=False).head(10).reset_index()
         top["total_minutes"] = (top["total_seconds"] / 60).round(1)
-        # Keep full number as string — no scientific notation
-        top["called_number"] = top["called_number"].astype(str)
+        # Prefix with invisible char so plotly treats as pure category, never numeric
+        top["called_number"] = top["called_number"].astype(str).apply(lambda x: "\u200b" + x)
 
         fig_top = px.bar(top, x="total_calls", y="called_number", orientation="h",
             color_discrete_sequence=[PINK],
             labels={"total_calls": "Number of Calls", "called_number": "Phone Number"})
-        fig_top = _layout(fig_top, "Most called numbers", "Number of Calls", "Phone Number")
-        fig_top.update_xaxes(tickformat="d")
+        fig_top.update_layout(
+            plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter", font_color=TXT,
+            title_text=f"Most called numbers<br><sup style='color:{HINT}'>{period_label}</sup>" if period_label else "Most called numbers",
+            title_font_family="Playfair Display", title_font_size=15,
+            margin=dict(l=130, r=20, t=55, b=60),
+            xaxis=dict(title="Number of Calls", gridcolor=BORDER, tickformat="d",
+                       tickfont=dict(size=10), title_font=dict(size=11)),
+            yaxis=dict(title="Phone Number", gridcolor=BORDER, type="category",
+                       tickfont=dict(size=10), title_font=dict(size=11),
+                       categoryorder="total ascending"),
+        )
         figs["top_numbers"] = fig_top
 
         fig_tt = px.bar(top, x="total_minutes", y="called_number", orientation="h",
             color_discrete_sequence=[PINK_M],
             labels={"total_minutes": "Talk Time (min)", "called_number": "Phone Number"})
-        fig_tt = _layout(fig_tt, "Talk time per number", "Talk Time (min)", "Phone Number")
-        fig_tt.update_xaxes(tickformat=".1f")
+        fig_tt.update_layout(
+            plot_bgcolor=WHITE, paper_bgcolor=WHITE, font_family="Inter", font_color=TXT,
+            title_text=f"Talk time per number<br><sup style='color:{HINT}'>{period_label}</sup>" if period_label else "Talk time per number",
+            title_font_family="Playfair Display", title_font_size=15,
+            margin=dict(l=130, r=20, t=55, b=60),
+            xaxis=dict(title="Talk Time (min)", gridcolor=BORDER, tickformat=".1f",
+                       tickfont=dict(size=10), title_font=dict(size=11)),
+            yaxis=dict(title="Phone Number", gridcolor=BORDER, type="category",
+                       tickfont=dict(size=10), title_font=dict(size=11),
+                       categoryorder="total ascending"),
+        )
         figs["talk_time"] = fig_tt
 
     # ── Calls by day of week ──────────────────────────────────────────────
@@ -1125,9 +1163,36 @@ elif page == "calls":
 
     if df is not None and len(df) > 0:
         figs = build_charts(df)
-        for k, fig in figs.items():
-            st.plotly_chart(fig, use_container_width=True)
 
+        # Period label banner
+        if "daily_calls" in figs:
+            try:
+                parsed = pd.to_datetime(df["call_date"], dayfirst=True, errors="coerce").dropna()
+                span = (parsed.max() - parsed.min()).days
+                if span <= 1:
+                    period_str = "Daily analysis"
+                elif span <= 31:
+                    period_str = f"Monthly analysis — {parsed.min().strftime('%B %Y')}"
+                elif span <= 93:
+                    period_str = "Quarterly analysis"
+                else:
+                    period_str = f"Yearly analysis — {parsed.min().strftime('%Y')}"
+                st.markdown(f'<div class="info-pill">📅 {period_str} · {len(df)} calls total</div>', unsafe_allow_html=True)
+                st.markdown("")
+            except: pass
+
+        # Daily chart first, full width
+        if "daily_calls" in figs:
+            st.plotly_chart(figs["daily_calls"], use_container_width=True)
+            st.markdown("---")
+
+        # Remaining charts in 2-col grid
+        other_keys = [k for k in figs if k != "daily_calls"]
+        col1, col2 = st.columns(2)
+        for i, k in enumerate(other_keys):
+            (col1 if i % 2 == 0 else col2).plotly_chart(figs[k], use_container_width=True)
+
+        st.markdown("---")
         st.markdown("#### Full call log")
         st.dataframe(df, use_container_width=True)
         st.download_button("⬇ Download call log (CSV)", df.to_csv(index=False).encode(),
